@@ -1,0 +1,251 @@
+# Lahzi Android App — Trusted Web Activity (TWA)
+
+**Package name:** `com.alphotondigital.lahzi`  
+**Developer:** Alphoton Digital  
+**Website:** https://lahzi.ly  
+**Version:** 1.0.0 (versionCode 1)  
+**Min Android:** 5.0 (API 21)  
+**Target Android:** API 35  
+
+---
+
+## What is this?
+
+This is a **Trusted Web Activity (TWA)** wrapper for the Lahzi PWA.  
+TWA is Google's official way to publish PWAs on Google Play — the Android app loads the live website directly in a full-screen Chrome tab, with no browser UI visible.
+
+**Benefits:**
+- Real-time updates always work (no app update needed for content)
+- Arabic RTL + English LTR work perfectly
+- Dark Lahzi branding preserved
+- Passes Google Play review
+- Lightweight (~2MB app size)
+
+---
+
+## Project Structure
+
+```
+android-twa/
+├── app/
+│   ├── build.gradle              — App-level Gradle config
+│   ├── proguard-rules.pro
+│   └── src/main/
+│       ├── AndroidManifest.xml   — TWA config (URL, colors, splash)
+│       └── res/
+│           ├── values/strings.xml
+│           ├── values/colors.xml
+│           ├── values/styles.xml
+│           └── xml/filepaths.xml
+├── .github/workflows/
+│   └── build-release.yml         — GitHub Actions CI/CD
+├── scripts/
+│   └── setup-icons.sh            — Generates all icon PNGs
+├── build.gradle
+├── settings.gradle
+├── gradle.properties
+├── generate-keystore.sh          — One-time keystore setup
+├── assetlinks-template.json      — Reference copy
+└── app-icon.png                  — Source icon (1254×1254)
+```
+
+---
+
+## Step-by-Step Build Guide
+
+### Step 1 — Generate Keystore (ONE TIME ONLY)
+
+You need a keystore to sign the app. **Keep it forever** — you need the same keystore for every future update.
+
+**Requirements:** Java JDK installed locally
+
+```bash
+cd android-twa
+bash generate-keystore.sh
+```
+
+This will:
+1. Create `keystore/lahzi-release.jks`
+2. Print your **SHA-256 fingerprint** — copy it!
+3. Print the base64 of the keystore — save it for GitHub
+
+---
+
+### Step 2 — Update assetlinks.json
+
+After getting your SHA-256 fingerprint, update this file in the main project:
+
+```
+artifacts/bassa-today/public/.well-known/assetlinks.json
+```
+
+Replace `REPLACE_WITH_YOUR_SHA256_FINGERPRINT` with your actual fingerprint:
+```
+AB:CD:EF:12:34:...  (56 colon-separated hex pairs)
+```
+
+Then deploy the website. Verify it's live at:
+```
+https://lahzi.ly/.well-known/assetlinks.json
+```
+
+**This step is required for TWA to work** (Chrome verifies the link between your app and website).
+
+---
+
+### Step 3 — Push to GitHub & Add Secrets
+
+1. Push the `android-twa/` folder to a GitHub repository
+2. Go to **Settings → Secrets and variables → Actions**
+3. Add these 4 secrets:
+
+| Secret Name | Value |
+|---|---|
+| `KEYSTORE_BASE64` | Base64 output from `generate-keystore.sh` |
+| `KEYSTORE_PASSWORD` | Your keystore password |
+| `KEY_ALIAS` | `lahzi` |
+| `KEY_PASSWORD` | Your key password |
+
+---
+
+### Step 4 — Trigger the Build
+
+The build runs automatically on every push to `main`, or manually:
+
+1. Go to your GitHub repo → **Actions** tab
+2. Click **Build Release AAB & APK**
+3. Click **Run workflow**
+
+Wait ~5 minutes for it to complete.
+
+---
+
+### Step 5 — Download Built Files
+
+After the workflow succeeds:
+
+1. Click on the completed workflow run
+2. Scroll to **Artifacts** section at the bottom
+3. Download:
+   - `lahzi-release-X.aab` → upload to Google Play
+   - `lahzi-release-X.apk` → install on device for testing
+
+---
+
+### Step 6 — Test the APK
+
+Install on an Android device:
+```bash
+adb install lahzi-release-X.apk
+```
+Or transfer the APK file to your phone and open it.
+
+**Test checklist:**
+- [ ] App opens correctly
+- [ ] Home page loads (prices visible)
+- [ ] Arabic RTL layout correct
+- [ ] English LTR layout correct
+- [ ] Currency / Gold / Goods pages work
+- [ ] Calculator works
+- [ ] Privacy Policy opens at `/privacy`
+- [ ] WhatsApp link opens WhatsApp
+- [ ] Facebook/Telegram/TikTok links open correctly
+- [ ] App icon looks correct
+- [ ] Splash screen shows dark navy background
+- [ ] Back button navigates correctly (doesn't close app on first tap inside the site)
+- [ ] No browser address bar visible
+- [ ] Works on slow connection (shows loading state)
+
+---
+
+### Step 7 — Google Play Upload
+
+1. Go to [Google Play Console](https://play.google.com/console)
+2. Create new app (if first time):
+   - App name: `Lahzi | لحظي`
+   - Default language: Arabic
+   - App category: Finance
+3. Go to **Release → Production → Create new release**
+4. Upload `lahzi-release-X.aab`
+5. Fill in release notes
+6. Complete store listing (description, screenshots, icon)
+7. Submit for review
+
+**Store listing assets needed:**
+- `play-store-icon-512.png` — generated by `setup-icons.sh`
+- Feature graphic: 1024×500px
+- Screenshots: min 2, recommend 4-8
+- Short description (80 chars)
+- Full description
+
+---
+
+## App Information Summary
+
+| Field | Value |
+|---|---|
+| Package name | `com.alphotondigital.lahzi` |
+| App name | `Lahzi \| لحظي` |
+| Developer | Alphoton Digital |
+| Version name | 1.0.0 |
+| Version code | 1 |
+| Min SDK | 21 (Android 5.0) |
+| Target SDK | 35 (Android 15) |
+| Permissions | INTERNET only |
+| Website | https://lahzi.ly |
+| Privacy Policy | https://lahzi.ly/privacy |
+
+---
+
+## Updating the App
+
+For content changes (prices, UI, text): **no app update needed** — the website updates automatically.
+
+For app updates (icon, splash, permissions, version bump):
+1. Change `versionCode` and `versionName` in `app/build.gradle`
+2. Push to GitHub → new AAB is built automatically
+3. Upload new AAB to Google Play
+
+---
+
+## Local Build (without GitHub Actions)
+
+Requirements: Java JDK 17, Android SDK (API 35), ImageMagick
+
+```bash
+cd android-twa
+
+# Generate icons
+bash scripts/setup-icons.sh
+
+# Set up Gradle wrapper (first time)
+gradle wrapper --gradle-version=8.7
+
+# Build
+export KEYSTORE_PATH=keystore/lahzi-release.jks
+export KEYSTORE_PASSWORD=your_store_password
+export KEY_ALIAS=lahzi
+export KEY_PASSWORD=your_key_password
+
+./gradlew bundleRelease   # → app/build/outputs/bundle/release/app-release.aab
+./gradlew assembleRelease # → app/build/outputs/apk/release/app-release.apk
+```
+
+---
+
+## Troubleshooting
+
+**App shows browser UI / address bar visible:**  
+The `assetlinks.json` is not verified. Check that:  
+- File is accessible at `https://lahzi.ly/.well-known/assetlinks.json`
+- SHA-256 fingerprint matches your keystore exactly
+- Content-Type is `application/json`
+
+**Build fails with "keystore not found":**  
+Make sure `KEYSTORE_BASE64` GitHub secret is set correctly (no extra newlines).
+
+**Build fails with "SDK not found":**  
+The `android-actions/setup-android@v3` step handles this — make sure it's not skipped.
+
+**Icon not showing:**  
+Run `bash scripts/setup-icons.sh` before building. Requires `app-icon.png` in the `android-twa/` root.
