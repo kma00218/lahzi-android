@@ -52,7 +52,7 @@ jobs:
       - name: Decode keystore
         run: |
           mkdir -p keystore
-          echo "$KEYSTORE_BASE64" | base64 --decode > keystore/lahzi-release.jks
+          echo "$KEYSTORE_BASE64" | base64 --decode > keystore/lahzi-release.p12
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
 
@@ -60,7 +60,7 @@ jobs:
       - name: Build release AAB
         run: ./gradlew bundleRelease --no-daemon
         env:
-          KEYSTORE_PATH:      keystore/lahzi-release.jks
+          KEYSTORE_PATH:      keystore/lahzi-release.p12
           KEYSTORE_PASSWORD:  ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS:          ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD:       ${{ secrets.KEY_PASSWORD }}
@@ -69,7 +69,7 @@ jobs:
       - name: Build release APK
         run: ./gradlew assembleRelease --no-daemon
         env:
-          KEYSTORE_PATH:      keystore/lahzi-release.jks
+          KEYSTORE_PATH:      keystore/lahzi-release.p12
           KEYSTORE_PASSWORD:  ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS:          ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD:       ${{ secrets.KEY_PASSWORD }}
@@ -89,11 +89,9 @@ jobs:
           path: app/build/outputs/apk/release/app-release.apk
           retention-days: 90
 
-      # ── 11. Print key info ────────────────────────────────────────────────
-      - name: Print SHA-256 fingerprint (needed for assetlinks.json)
+      # ── 11. Print SHA-256 fingerprint ─────────────────────────────────────
+      - name: Print SHA-256 fingerprint
         run: |
-          keytool -list -v \
-            -keystore keystore/lahzi-release.jks \
-            -alias "${{ secrets.KEY_ALIAS }}" \
-            -storepass "${{ secrets.KEYSTORE_PASSWORD }}" \
-            2>/dev/null | grep "SHA256:" || true
+          openssl pkcs12 -in keystore/lahzi-release.p12 \
+            -passin "pass:${{ secrets.KEYSTORE_PASSWORD }}" -nokeys 2>/dev/null \
+            | openssl x509 -noout -fingerprint -sha256 2>/dev/null || true

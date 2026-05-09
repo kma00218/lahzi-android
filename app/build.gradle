@@ -16,10 +16,11 @@ android {
 
     signingConfigs {
         release {
-            storeFile     file(System.getenv("KEYSTORE_PATH") ?: "keystore/lahzi-release.jks")
+            storeFile     file(System.getenv("KEYSTORE_PATH") ?: "keystore/lahzi-release.p12")
             storePassword System.getenv("KEYSTORE_PASSWORD") ?: ""
             keyAlias      System.getenv("KEY_ALIAS")         ?: "lahzi"
             keyPassword   System.getenv("KEY_PASSWORD")      ?: ""
+            storeType     "PKCS12"
         }
     }
 
