@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Deep navy — matches app background #0B1220 -->
+    <color name="colorPrimary">#0B1220</color>
+    <color name="colorPrimaryDark">#0B1220</color>
+    <!-- Gold accent — matches brand #F5A623 -->
+    <color name="colorAccent">#F5A623</color>
+    <!-- Splash background -->
+    <color name="colorSplashBackground">#0B1220</color>
+</resources>
