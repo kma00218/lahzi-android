@@ -10,8 +10,8 @@ android {
         applicationId "com.lahzi.app"
         minSdk 21
         targetSdk 35
-        versionCode 2
-        versionName "1.0.2"
+        versionCode 3
+        versionName "1.1.0"
     }
 
     signingConfigs {
@@ -49,10 +49,10 @@ android {
 }
 
 dependencies {
-    // AppCompat — required for Theme.AppCompat (used in styles.xml)
+    // AppCompat — required for Theme.AppCompat + AppCompatActivity
     implementation 'androidx.appcompat:appcompat:1.6.1'
-    // Custom Tabs — explicit pin to avoid transitive version conflicts
+    // Custom Tabs — for Chrome Custom Tab launch
     implementation 'androidx.browser:browser:1.8.0'
-    // TWA / Android Browser Helper
-    implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.5.0'
+    // Core utils (transitively included by appcompat, listed for clarity)
+    implementation 'androidx.core:core:1.12.0'
 }

@@ -5,21 +5,21 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <!--
-      Android 11+ (API 30+) Package Visibility:
-      Without <queries>, PackageManager cannot see Chrome or any browser,
-      causing the TWA library to throw NameNotFoundException and crash on launch.
+      Android 11+ (API 30+) package visibility.
+      Without <queries>, PackageManager cannot see Chrome even if installed,
+      causing ActivityNotFoundException when launching Custom Tabs.
     -->
     <queries>
-        <!-- Chrome stable, beta, dev, canary -->
         <package android:name="com.android.chrome" />
         <package android:name="com.chrome.beta" />
         <package android:name="com.chrome.dev" />
         <package android:name="com.chrome.canary" />
-        <!-- Any Custom Tab provider (Brave, Firefox, Samsung Browser, etc.) -->
+        <package android:name="org.chromium.chrome" />
+        <!-- Any browser supporting Custom Tabs -->
         <intent>
             <action android:name="android.support.customtabs.action.CustomTabsService" />
         </intent>
-        <!-- Any browser that handles HTTPS -->
+        <!-- Any browser that can open HTTPS links -->
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <category android:name="android.intent.category.BROWSABLE" />
@@ -35,64 +35,25 @@
         android:allowBackup="false"
         android:supportsRtl="true">
 
+        <!--
+          Custom crash-proof launcher.
+          1. Tries Chrome Custom Tab (best UX)
+          2. Falls back to full-screen WebViewActivity on any exception
+          All paths wrapped in try-catch — this activity CANNOT crash.
+        -->
         <activity
-            android:name="com.google.androidbrowserhelper.trusted.LauncherActivity"
+            android:name="com.lahzi.app.LauncherActivity"
             android:exported="true"
-            android:screenOrientation="portrait">
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize">
 
-            <!-- Target URL -->
-            <meta-data
-                android:name="android.support.customtabs.trusted.DEFAULT_URL"
-                android:value="https://lahzi.ly" />
-
-            <!-- Status / navigation bar color (deep navy) -->
-            <meta-data
-                android:name="android.support.customtabs.trusted.STATUS_BAR_COLOR"
-                android:value="@color/colorPrimary" />
-            <meta-data
-                android:name="android.support.customtabs.trusted.STATUS_BAR_COLOR_DARK"
-                android:value="@color/colorPrimary" />
-            <meta-data
-                android:name="android.support.customtabs.trusted.NAVIGATION_BAR_COLOR"
-                android:value="@color/colorPrimary" />
-            <meta-data
-                android:name="android.support.customtabs.trusted.NAVIGATION_BAR_DIVIDER_COLOR"
-                android:value="@color/colorPrimary" />
-
-            <!-- Splash screen -->
-            <meta-data
-                android:name="android.support.customtabs.trusted.SPLASH_SCREEN_BACKGROUND_COLOR"
-                android:value="@color/colorPrimary" />
-            <meta-data
-                android:name="android.support.customtabs.trusted.SPLASH_IMAGE_DRAWABLE"
-                android:resource="@drawable/splash_icon" />
-            <meta-data
-                android:name="android.support.customtabs.trusted.SPLASH_SCREEN_FADE_OUT_DURATION"
-                android:value="400" />
-
-            <!-- File provider (required by TWA library for splash screen sharing) -->
-            <meta-data
-                android:name="android.support.customtabs.trusted.FILE_PROVIDER_AUTHORITY"
-                android:value="com.lahzi.app.fileprovider" />
-
-            <!--
-              FALLBACK_STRATEGY = "webview":
-              Falls back to an in-app WebView if Chrome/Custom Tabs are unavailable
-              (fixes crash on BlueStacks and devices without Chrome).
-              "customtabs" fallback throws ActivityNotFoundException when no browser
-              supports Custom Tabs, crashing the app immediately.
-            -->
-            <meta-data
-                android:name="android.support.customtabs.trusted.FALLBACK_STRATEGY"
-                android:value="webview" />
-
-            <!-- Launcher intent -->
+            <!-- App icon tap -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Digital Asset Links verification -->
+            <!-- Digital Asset Links deep-link verification -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -103,23 +64,15 @@
         </activity>
 
         <!--
-          WebViewFallbackActivity — declared explicitly so Android 12+ (API 31+)
-          requirement of android:exported on components with intent-filters is met
-          for the library's fallback activity.
+          Full-screen WebView fallback.
+          Used on BlueStacks / devices without Custom Tab support.
+          android:exported="false" — only launched internally.
         -->
         <activity
-            android:name="com.google.androidbrowserhelper.trusted.WebViewFallbackActivity"
-            android:exported="false" />
-
-        <provider
-            android:name="androidx.core.content.FileProvider"
-            android:authorities="com.lahzi.app.fileprovider"
+            android:name="com.lahzi.app.WebViewActivity"
             android:exported="false"
-            android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/filepaths" />
-        </provider>
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize" />
 
     </application>
 
