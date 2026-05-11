@@ -3,8 +3,8 @@ package com.lahzi.app;
 import android.app.Activity;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.net.http.SslError;
@@ -24,47 +24,43 @@ import android.webkit.WebViewClient;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
+import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import java.lang.ref.WeakReference;
+import java.util.List;
 
 /**
  * LauncherActivity — full-screen WebView for https://lahzi.ly
  *
- * Features:
- *  - Loads lahzi.ly directly (no Chrome/Custom Tab dependency)
- *  - External links (WhatsApp, Telegram, Facebook, Instagram…) routed to installed apps
- *  - navigator.share → Android native share sheet via JavascriptInterface
- *  - POST_NOTIFICATIONS permission requested once on first launch (Android 13+)
- *  - Loading spinner + network error screen with Arabic retry button
+ * Fixes in v1.4.0:
+ *  A) Share: injects bridge in onPageStarted (early) + onPageFinished (re-apply).
+ *     Chooser guarded by queryIntentActivities; falls back to opening URL in
+ *     browser if no share apps are installed (BlueStacks case). FLAG_ACTIVITY_NEW_TASK
+ *     added to both inner intent and chooser.
+ *  B) Notifications: uses checkSelfPermission directly — no SharedPreferences guard
+ *     that persists across re-installs.
  */
 public class LauncherActivity extends AppCompatActivity {
 
-    static final  String TARGET_URL     = "https://lahzi.ly";
-    private static final int    NAV_COLOR       = 0xFF0B1220;
-    private static final int    REQ_NOTIF       = 1001;
-    private static final String PREF_FILE       = "lahzi_prefs";
-    private static final String PREF_NOTIF_ASKED = "notif_permission_asked";
-
-    // Share text defaults
-    private static final String SHARE_TITLE = "Lahzi | لحظي";
-    private static final String SHARE_URL   = "https://lahzi.ly";
+    static final  String TARGET_URL   = "https://lahzi.ly";
+    private static final int    NAV_COLOR     = 0xFF0B1220;
+    private static final int    REQ_NOTIF     = 1001;
+    private static final String SHARE_TITLE   = "Lahzi | لحظي";
+    private static final String SHARE_URL     = "https://lahzi.ly";
 
     private WebView      mWebView;
     private ProgressBar  mSpinner;
     private LinearLayout mErrorLayout;
 
-    // -------------------------------------------------------------------------
-    // Lifecycle
-    // -------------------------------------------------------------------------
+    // ─── Lifecycle ────────────────────────────────────────────────────────────
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        // Navy status + navigation bars
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             getWindow().setStatusBarColor(NAV_COLOR);
             getWindow().setNavigationBarColor(NAV_COLOR);
@@ -80,8 +76,7 @@ public class LauncherActivity extends AppCompatActivity {
         setupWebView();
         loadUrl();
 
-        // Request notification permission ~2 s after launch so the user sees
-        // the app first and the dialog doesn't feel intrusive.
+        // Ask for notification permission 2 s after launch (non-intrusive).
         new Handler(Looper.getMainLooper()).postDelayed(
                 this::maybeRequestNotificationPermission, 2000);
     }
@@ -99,15 +94,17 @@ public class LauncherActivity extends AppCompatActivity {
         else super.onBackPressed();
     }
 
-    // -------------------------------------------------------------------------
-    // Notification permission (Android 13+ POST_NOTIFICATIONS)
-    // -------------------------------------------------------------------------
+    // ─── B) Notification permission ───────────────────────────────────────────
+    //
+    // Checks the ACTUAL permission state on every launch instead of relying on a
+    // SharedPreferences flag that persists across re-installs. Android's own
+    // permission system tracks "Don't ask again" internally, so if the user
+    // denied with "Don't ask again" requestPermissions is silently ignored.
 
     private void maybeRequestNotificationPermission() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return;
-        SharedPreferences prefs = getSharedPreferences(PREF_FILE, MODE_PRIVATE);
-        if (prefs.getBoolean(PREF_NOTIF_ASKED, false)) return;
-        prefs.edit().putBoolean(PREF_NOTIF_ASKED, true).apply();
+        if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                == PackageManager.PERMISSION_GRANTED) return;
         requestPermissions(
                 new String[]{android.Manifest.permission.POST_NOTIFICATIONS},
                 REQ_NOTIF);
@@ -118,13 +115,11 @@ public class LauncherActivity extends AppCompatActivity {
                                            @NonNull String[] permissions,
                                            @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        // Nothing extra needed — if denied the app continues normally.
-        // If granted, the Android notification channel is ready for use.
+        // Granted → notification channel is ready.
+        // Denied  → app continues normally.
     }
 
-    // -------------------------------------------------------------------------
-    // WebView setup
-    // -------------------------------------------------------------------------
+    // ─── WebView setup ────────────────────────────────────────────────────────
 
     private void loadUrl() {
         showLoading(true);
@@ -152,38 +147,35 @@ public class LauncherActivity extends AppCompatActivity {
         }
 
         mWebView.setBackgroundColor(NAV_COLOR);
-
-        // JavaScript interface — exposes AndroidBridge.share() to the page
         mWebView.addJavascriptInterface(new AndroidShareBridge(this), "AndroidBridge");
 
         mWebView.setWebViewClient(new WebViewClient() {
 
-            // ------------------------------------------------------------------
-            // A) External link routing
-            // ------------------------------------------------------------------
+            // ── External link routing ─────────────────────────────────────────
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 Uri uri = request.getUrl();
-                if (isInternalUrl(uri)) return false; // Stay in WebView
+                if (isInternalUrl(uri)) return false;
                 openExternal(uri);
-                return true; // Consumed
+                return true;
             }
 
-            // ------------------------------------------------------------------
-            // Loading / error events
-            // ------------------------------------------------------------------
+            // ── Page lifecycle ────────────────────────────────────────────────
             @Override
             public void onPageStarted(WebView view, String url, Bitmap favicon) {
                 super.onPageStarted(view, url, favicon);
                 showLoading(true);
+                // A) Inject share bridge EARLY — before page JS runs — so
+                //    navigator.share is already our version when the page evaluates it.
+                injectShareBridge(view, true);
             }
 
             @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
                 showLoading(false);
-                // B) Inject navigator.share bridge after every page load
-                injectShareBridge(view);
+                // Re-apply after page load in case page JS overwrote navigator.share.
+                injectShareBridge(view, false);
             }
 
             @Override
@@ -215,18 +207,11 @@ public class LauncherActivity extends AppCompatActivity {
         });
     }
 
-    // -------------------------------------------------------------------------
-    // A) External-link helpers
-    // -------------------------------------------------------------------------
+    // ─── External link helpers ────────────────────────────────────────────────
 
-    /**
-     * Returns true when the URI should stay inside the WebView (our own domain).
-     */
     private boolean isInternalUrl(Uri uri) {
         String scheme = uri.getScheme();
-        if (!"https".equalsIgnoreCase(scheme) && !"http".equalsIgnoreCase(scheme)) {
-            return false; // Non-http schemes are always external
-        }
+        if (!"https".equalsIgnoreCase(scheme) && !"http".equalsIgnoreCase(scheme)) return false;
         String host = uri.getHost();
         if (host == null) return false;
         String h = host.toLowerCase();
@@ -234,48 +219,27 @@ public class LauncherActivity extends AppCompatActivity {
             || h.equals("lahzi.online") || h.endsWith(".lahzi.online");
     }
 
-    /**
-     * Opens a URI in the best available external handler.
-     *
-     * Priority:
-     *  1. Try the exact URI (lets installed apps claim their deep-link schemes/hosts)
-     *  2. If ActivityNotFoundException → try the plain https:// equivalent
-     *  3. If still no handler → silently ignore (never crash)
-     */
     private void openExternal(Uri uri) {
         try {
             Intent intent = new Intent(Intent.ACTION_VIEW, uri);
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             startActivity(intent);
         } catch (ActivityNotFoundException e1) {
-            // Installed app not found — try https fallback
             Uri fallback = toHttpsFallback(uri);
             if (fallback != null && !fallback.equals(uri)) {
                 try {
                     Intent browserIntent = new Intent(Intent.ACTION_VIEW, fallback);
                     browserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                     startActivity(browserIntent);
-                } catch (Exception e2) {
-                    // Silently ignore — nothing we can do
-                }
+                } catch (Exception ignored) { }
             }
-        } catch (Exception e) {
-            // Silently ignore all other errors
-        }
+        } catch (Exception ignored) { }
     }
 
-    /**
-     * Best-effort conversion of an app-scheme URI to an https fallback.
-     * e.g.  fb://profile/123  →  https://facebook.com/profile/123
-     *        tg://resolve?...  →  https://t.me/...  (left for system browser)
-     */
     private Uri toHttpsFallback(Uri uri) {
         String scheme = uri.getScheme();
         if (scheme == null) return null;
-        // Already http(s) — return as-is
         if ("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme)) return uri;
-        // Known scheme → https host mappings
-        String host = uri.getHost();
         String path = uri.getPath() != null ? uri.getPath() : "";
         switch (scheme.toLowerCase()) {
             case "fb":
@@ -285,37 +249,39 @@ public class LauncherActivity extends AppCompatActivity {
             case "whatsapp":    return Uri.parse("https://wa.me" + path);
             case "instagram":   return Uri.parse("https://instagram.com" + path);
             default:
-                if (host != null) return Uri.parse("https://" + host + path);
-                return null;
+                String host = uri.getHost();
+                return host != null ? Uri.parse("https://" + host + path) : null;
         }
     }
 
-    // -------------------------------------------------------------------------
-    // B) navigator.share bridge — injected into the page after each load
-    // -------------------------------------------------------------------------
+    // ─── A) navigator.share bridge ────────────────────────────────────────────
 
     /**
-     * Injects a thin JS shim that maps navigator.share() calls to
-     * AndroidBridge.share() (our @JavascriptInterface), which triggers the
-     * Android native share sheet.  Already-functional native share is left
-     * as a fallback so nothing breaks on capable devices/emulators.
+     * Injects the Android share bridge into the WebView.
+     *
+     * @param forceReinstall  true = always overwrite navigator.share (used in
+     *                        onPageStarted where the page may not have run yet).
+     *                        false = only install if our flag isn't set.
      */
-    private void injectShareBridge(WebView view) {
+    private void injectShareBridge(WebView view, boolean forceReinstall) {
         // language=JavaScript
         String js =
             "(function() {" +
-            "  if (window._lahziShareBridgeInstalled) return;" +
+            // In onPageFinished we skip if already installed; in onPageStarted we
+            // always install (forceReinstall=true flag injected below).
+            "  if (" + (forceReinstall ? "false" : "window._lahziShareBridgeInstalled") + ") return;" +
             "  window._lahziShareBridgeInstalled = true;" +
-            "  var _native = (typeof navigator.share === 'function') ? navigator.share.bind(navigator) : null;" +
+            "  var _native = (typeof navigator !== 'undefined' && typeof navigator.share === 'function')" +
+            "    ? navigator.share.bind(navigator) : null;" +
             "  navigator.share = function(data) {" +
             "    return new Promise(function(resolve, reject) {" +
             "      try {" +
-            "        var title = (data && data.title) ? data.title : '" + SHARE_TITLE + "';" +
-            "        var text  = (data && data.text)  ? data.text  : '';" +
-            "        var url   = (data && data.url)   ? data.url   : window.location.href;" +
+            "        var title = (data && data.title) ? String(data.title) : '" + SHARE_TITLE + "';" +
+            "        var text  = (data && data.text)  ? String(data.text)  : '';" +
+            "        var url   = (data && data.url)   ? String(data.url)   : window.location.href;" +
             "        AndroidBridge.share(title, text, url);" +
             "        resolve();" +
-            "      } catch (e) {" +
+            "      } catch(e) {" +
             "        if (_native) { _native(data).then(resolve).catch(reject); }" +
             "        else { reject(e); }" +
             "      }" +
@@ -326,45 +292,66 @@ public class LauncherActivity extends AppCompatActivity {
         view.evaluateJavascript(js, null);
     }
 
-    // -------------------------------------------------------------------------
-    // B) Android share-bridge JavascriptInterface (inner class)
-    // -------------------------------------------------------------------------
+    // ─── A) Share JavascriptInterface ─────────────────────────────────────────
 
     private static final class AndroidShareBridge {
         private final WeakReference<Activity> mRef;
-        AndroidShareBridge(Activity activity) { mRef = new WeakReference<>(activity); }
+        AndroidShareBridge(Activity a) { mRef = new WeakReference<>(a); }
 
         /**
-         * Called from JavaScript: AndroidBridge.share(title, text, url)
-         * Executes on a background thread — must switch to UI for startActivity.
+         * Called from JS on a background thread.
+         * Creates an ACTION_SEND intent and shows the system share sheet.
+         *
+         * If no apps are installed that handle text/plain shares (happens on a
+         * fresh BlueStacks install), falls back to opening the URL in a browser.
          */
         @JavascriptInterface
         public void share(String title, String text, String url) {
             Activity activity = mRef.get();
             if (activity == null || activity.isFinishing()) return;
 
-            String safeTitle = (title != null && !title.isEmpty()) ? title : SHARE_TITLE;
-            String safeUrl   = (url   != null && !url.isEmpty())   ? url   : SHARE_URL;
-            String shareBody = safeTitle + "\n" + safeUrl;
+            final String safeTitle = (title != null && !title.isEmpty()) ? title : SHARE_TITLE;
+            final String safeUrl   = (url   != null && !url.isEmpty())   ? url   : SHARE_URL;
+            final String shareBody = safeTitle + "\n" + safeUrl;
 
-            final Intent intent = new Intent(Intent.ACTION_SEND);
-            intent.setType("text/plain");
-            intent.putExtra(Intent.EXTRA_TITLE, safeTitle);
-            intent.putExtra(Intent.EXTRA_TEXT, shareBody);
+            final Intent sendIntent = new Intent(Intent.ACTION_SEND);
+            sendIntent.setType("text/plain");
+            sendIntent.putExtra(Intent.EXTRA_TITLE, safeTitle);
+            sendIntent.putExtra(Intent.EXTRA_TEXT, shareBody);
+            // FLAG_ACTIVITY_NEW_TASK required when starting from a non-UI thread context.
+            sendIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
 
             activity.runOnUiThread(() -> {
                 try {
-                    activity.startActivity(Intent.createChooser(intent, "مشاركة عبر"));
-                } catch (Exception e) {
-                    // Silently ignore
-                }
+                    // Guard: check if any app can actually handle this intent.
+                    // On BlueStacks with no messaging apps installed, the list is
+                    // empty and the chooser would show "No app can perform this action".
+                    List<ResolveInfo> resolvers = activity.getPackageManager()
+                            .queryIntentActivities(sendIntent, PackageManager.MATCH_DEFAULT_ONLY);
+
+                    if (!resolvers.isEmpty()) {
+                        // Normal path — show system share sheet.
+                        Intent chooser = Intent.createChooser(sendIntent, "مشاركة عبر");
+                        chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        activity.startActivity(chooser);
+                    } else {
+                        // Fallback: open URL in browser and show a toast.
+                        Toast.makeText(activity,
+                                "افتح الرابط: " + safeUrl,
+                                Toast.LENGTH_LONG).show();
+                        try {
+                            Intent browserIntent = new Intent(Intent.ACTION_VIEW,
+                                    Uri.parse(safeUrl));
+                            browserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            activity.startActivity(browserIntent);
+                        } catch (Exception ignored) { }
+                    }
+                } catch (Exception ignored) { }
             });
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Helpers
-    // -------------------------------------------------------------------------
+    // ─── Helpers ──────────────────────────────────────────────────────────────
 
     private void showLoading(boolean show) {
         if (mSpinner != null) mSpinner.setVisibility(show ? View.VISIBLE : View.GONE);
