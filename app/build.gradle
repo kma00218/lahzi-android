@@ -48,6 +48,14 @@ android {
     }
 }
 
+// Kotlin 1.8+: kotlin-stdlib-jdk7/jdk8 are merged into kotlin-stdlib.
+// Exclude the old split artifacts pulled in by transitive deps to avoid
+// "Duplicate class" errors at build time.
+configurations.all {
+    exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk7'
+    exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk8'
+}
+
 dependencies {
     // AppCompat — required for Theme.AppCompat + AppCompatActivity
     implementation 'androidx.appcompat:appcompat:1.6.1'
