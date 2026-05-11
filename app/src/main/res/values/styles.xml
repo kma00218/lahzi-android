@@ -6,8 +6,5 @@
         <item name="android:navigationBarColor">@color/colorPrimary</item>
         <item name="android:colorPrimary">@color/colorPrimary</item>
         <item name="android:colorAccent">@color/colorAccent</item>
-        <item name="android:windowNoTitle">true</item>
-        <item name="windowNoTitle">true</item>
-        <item name="windowActionBar">false</item>
     </style>
 </resources>
