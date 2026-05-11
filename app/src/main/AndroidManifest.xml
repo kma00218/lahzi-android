@@ -1,11 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Network -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
-    <!-- Android 11+ (API 30+) package visibility for Custom Tabs / Chrome -->
+    <!-- Notifications — Android 13+ (API 33) requires explicit runtime permission -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!--
+      Android 11+ (API 30+) package visibility.
+      List every app whose URI scheme / package the WebView might hand off to.
+    -->
     <queries>
+        <!-- Browsers / Custom Tabs -->
         <package android:name="com.android.chrome" />
         <package android:name="com.chrome.beta" />
         <package android:name="com.chrome.dev" />
@@ -14,10 +22,60 @@
         <intent>
             <action android:name="android.support.customtabs.action.CustomTabsService" />
         </intent>
+
+        <!-- Generic https / http intents (browsers, deep-links) -->
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <category android:name="android.intent.category.BROWSABLE" />
             <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="http" />
+        </intent>
+
+        <!-- WhatsApp -->
+        <package android:name="com.whatsapp" />
+        <package android:name="com.whatsapp.w4b" />
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="whatsapp" />
+        </intent>
+
+        <!-- Telegram -->
+        <package android:name="org.telegram.messenger" />
+        <package android:name="org.telegram.messenger.web" />
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="tg" />
+        </intent>
+
+        <!-- Facebook -->
+        <package android:name="com.facebook.katana" />
+        <package android:name="com.facebook.lite" />
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="fb" />
+        </intent>
+
+        <!-- Instagram -->
+        <package android:name="com.instagram.android" />
+
+        <!-- Email / phone -->
+        <intent>
+            <action android:name="android.intent.action.SENDTO" />
+            <data android:scheme="mailto" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.DIAL" />
+            <data android:scheme="tel" />
+        </intent>
+
+        <!-- Android share sheet -->
+        <intent>
+            <action android:name="android.intent.action.SEND" />
+            <data android:mimeType="text/plain" />
         </intent>
     </queries>
 
@@ -31,9 +89,8 @@
         android:usesCleartextTraffic="false">
 
         <!--
-          LauncherActivity is a full-screen WebView that loads https://lahzi.ly directly.
-          No Chrome / Custom Tab dependency — works on all Android devices and emulators.
-          Includes loading spinner and network error + retry UI.
+          LauncherActivity — full-screen WebView loader.
+          No Chrome dependency. Handles external links, share, and notification permission.
         -->
         <activity
             android:name="com.lahzi.app.LauncherActivity"
@@ -57,7 +114,7 @@
 
         </activity>
 
-        <!-- WebViewActivity kept as a backup / utility activity -->
+        <!-- WebViewActivity kept as a utility / backup activity -->
         <activity
             android:name="com.lahzi.app.WebViewActivity"
             android:exported="false"
