@@ -2,6 +2,30 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!--
+      Android 11+ (API 30+) Package Visibility:
+      Without <queries>, PackageManager cannot see Chrome or any browser,
+      causing the TWA library to throw NameNotFoundException and crash on launch.
+    -->
+    <queries>
+        <!-- Chrome stable, beta, dev, canary -->
+        <package android:name="com.android.chrome" />
+        <package android:name="com.chrome.beta" />
+        <package android:name="com.chrome.dev" />
+        <package android:name="com.chrome.canary" />
+        <!-- Any Custom Tab provider (Brave, Firefox, Samsung Browser, etc.) -->
+        <intent>
+            <action android:name="android.support.customtabs.action.CustomTabsService" />
+        </intent>
+        <!-- Any browser that handles HTTPS -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" />
+        </intent>
+    </queries>
 
     <application
         android:label="@string/app_name"
@@ -41,20 +65,26 @@
                 android:value="@color/colorPrimary" />
             <meta-data
                 android:name="android.support.customtabs.trusted.SPLASH_IMAGE_DRAWABLE"
-                android:value="@drawable/splash_icon" />
+                android:resource="@drawable/splash_icon" />
             <meta-data
                 android:name="android.support.customtabs.trusted.SPLASH_SCREEN_FADE_OUT_DURATION"
                 android:value="400" />
 
-            <!-- File provider (required by TWA library) -->
+            <!-- File provider (required by TWA library for splash screen sharing) -->
             <meta-data
                 android:name="android.support.customtabs.trusted.FILE_PROVIDER_AUTHORITY"
                 android:value="com.lahzi.app.fileprovider" />
 
-            <!-- Fallback: open in Custom Tabs if TWA unavailable -->
+            <!--
+              FALLBACK_STRATEGY = "webview":
+              Falls back to an in-app WebView if Chrome/Custom Tabs are unavailable
+              (fixes crash on BlueStacks and devices without Chrome).
+              "customtabs" fallback throws ActivityNotFoundException when no browser
+              supports Custom Tabs, crashing the app immediately.
+            -->
             <meta-data
                 android:name="android.support.customtabs.trusted.FALLBACK_STRATEGY"
-                android:value="customtabs" />
+                android:value="webview" />
 
             <!-- Launcher intent -->
             <intent-filter>
@@ -71,6 +101,15 @@
             </intent-filter>
 
         </activity>
+
+        <!--
+          WebViewFallbackActivity — declared explicitly so Android 12+ (API 31+)
+          requirement of android:exported on components with intent-filters is met
+          for the library's fallback activity.
+        -->
+        <activity
+            android:name="com.google.androidbrowserhelper.trusted.WebViewFallbackActivity"
+            android:exported="false" />
 
         <provider
             android:name="androidx.core.content.FileProvider"
