@@ -49,7 +49,7 @@
             <!-- File provider (required by TWA library) -->
             <meta-data
                 android:name="android.support.customtabs.trusted.FILE_PROVIDER_AUTHORITY"
-                android:value="com.alphotondigital.lahzi.fileprovider" />
+                android:value="com.lahzi.app.fileprovider" />
 
             <!-- Fallback: open in Custom Tabs if TWA unavailable -->
             <meta-data
@@ -74,7 +74,7 @@
 
         <provider
             android:name="androidx.core.content.FileProvider"
-            android:authorities="com.alphotondigital.lahzi.fileprovider"
+            android:authorities="com.lahzi.app.fileprovider"
             android:exported="false"
             android:grantUriPermissions="true">
             <meta-data

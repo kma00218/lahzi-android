@@ -1,6 +1,6 @@
 # Lahzi Android App — Trusted Web Activity (TWA)
 
-**Package name:** `com.alphotondigital.lahzi`  
+**Package name:** `com.lahzi.app`  
 **Developer:** Alphoton Digital  
 **Website:** https://lahzi.ly  
 **Version:** 1.0.0 (versionCode 1)  
@@ -184,7 +184,7 @@ Or transfer the APK file to your phone and open it.
 
 | Field | Value |
 |---|---|
-| Package name | `com.alphotondigital.lahzi` |
+| Package name | `com.lahzi.app` |
 | App name | `Lahzi \| لحظي` |
 | Developer | Alphoton Digital |
 | Version name | 1.0.0 |
