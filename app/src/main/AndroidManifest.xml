@@ -4,22 +4,16 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
-    <!--
-      Android 11+ (API 30+) package visibility.
-      Without <queries>, PackageManager cannot see Chrome even if installed,
-      causing ActivityNotFoundException when launching Custom Tabs.
-    -->
+    <!-- Android 11+ (API 30+) package visibility for Custom Tabs / Chrome -->
     <queries>
         <package android:name="com.android.chrome" />
         <package android:name="com.chrome.beta" />
         <package android:name="com.chrome.dev" />
         <package android:name="com.chrome.canary" />
         <package android:name="org.chromium.chrome" />
-        <!-- Any browser supporting Custom Tabs -->
         <intent>
             <action android:name="android.support.customtabs.action.CustomTabsService" />
         </intent>
-        <!-- Any browser that can open HTTPS links -->
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <category android:name="android.intent.category.BROWSABLE" />
@@ -33,21 +27,21 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@style/AppTheme"
         android:allowBackup="false"
-        android:supportsRtl="true">
+        android:supportsRtl="true"
+        android:usesCleartextTraffic="false">
 
         <!--
-          Custom crash-proof launcher.
-          1. Tries Chrome Custom Tab (best UX)
-          2. Falls back to full-screen WebViewActivity on any exception
-          All paths wrapped in try-catch — this activity CANNOT crash.
+          LauncherActivity is a full-screen WebView that loads https://lahzi.ly directly.
+          No Chrome / Custom Tab dependency — works on all Android devices and emulators.
+          Includes loading spinner and network error + retry UI.
         -->
         <activity
             android:name="com.lahzi.app.LauncherActivity"
             android:exported="true"
             android:screenOrientation="portrait"
-            android:windowSoftInputMode="adjustResize">
+            android:windowSoftInputMode="adjustResize"
+            android:hardwareAccelerated="true">
 
-            <!-- App icon tap -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -63,16 +57,12 @@
 
         </activity>
 
-        <!--
-          Full-screen WebView fallback.
-          Used on BlueStacks / devices without Custom Tab support.
-          android:exported="false" — only launched internally.
-        -->
+        <!-- WebViewActivity kept as a backup / utility activity -->
         <activity
             android:name="com.lahzi.app.WebViewActivity"
             android:exported="false"
             android:screenOrientation="portrait"
-            android:windowSoftInputMode="adjustResize" />
+            android:hardwareAccelerated="true" />
 
     </application>
 
