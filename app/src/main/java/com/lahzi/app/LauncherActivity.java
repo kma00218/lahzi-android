@@ -180,12 +180,9 @@ public class LauncherActivity extends AppCompatActivity {
 
             @Override
             public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
-                String url = error.getUrl();
-                if (url != null && (url.contains("lahzi.ly") || url.contains("lahzi.online"))) {
-                    handler.proceed();
-                } else {
-                    handler.cancel();
-                }
+                // Always cancel — never bypass certificate validation.
+                // Google Play policy prohibits handler.proceed() in onReceivedSslError.
+                handler.cancel();
             }
 
             @Override
